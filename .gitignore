@@ -103,4 +103,6 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+.vscode
 find_a_rent_house/data
+find_a_rent_house/historydata

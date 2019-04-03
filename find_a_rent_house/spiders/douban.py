@@ -4,6 +4,7 @@ import re
 import os
 import time
 import random
+import checker
 
 class DoubanRentSpider(scrapy.Spider):
     name = 'douban-rent'
@@ -14,7 +15,6 @@ class DoubanRentSpider(scrapy.Spider):
         'ROBOTSTXT_OBEY': False
     }
     itemsPerPage = 25
-    maxPrice = 2600
     page = 0
     # 黑名单阈值
     blacklistThreshold = 4
@@ -24,7 +24,7 @@ class DoubanRentSpider(scrapy.Spider):
             |杨树浦路|浦东大道|世纪大道|浦电路|蓝村路|四川北路|天潼路|南京东路\
                 |豫园|老西门|新天地|陕西南路|上海图书馆|交通大学|虹桥路|宋园路|伊犁路'
     ex_keywords = r'限女|百套房源|已租'
-    price_keywords = r'(\d{3,5})(元|/?月|每月|一个月)'
+    
     # 最近3天的发帖
     period_seconds = 60 * 60 * 24 * 3
     # 最近2天的回复
@@ -38,7 +38,7 @@ class DoubanRentSpider(scrapy.Spider):
     # 本次启动浏览的页面数量
     page_viewed = 0
     # 每次启动浏览的最大页面数量
-    max_page_viewed = 200
+    max_page_viewed = 300
 
     def __init__(self):
         with open('data/blacklist', mode='r+', encoding='utf-8') as f:
@@ -68,25 +68,29 @@ class DoubanRentSpider(scrapy.Spider):
         imageNum = len(image)
         if (imageNum == 0):
             return
+        match = False
         for paragraph in content:
             # 价格判断
-            priceStr = re.search(self.price_keywords, paragraph)
-            if (priceStr):
-                price = int(priceStr[1])
-                if (price > self.maxPrice):
-                    return
+            if not checker.checker.checkPrice(paragraph):
+                return
+            if (re.search(self.ex_keywords, paragraph)):
+                return
             if (re.search(self.keywords, paragraph)):
-                if (not re.search(self.ex_keywords, paragraph)):
-                    with open('data/result', mode='a+', encoding='utf-8') as f:
-                        f.writelines(title + '\n')
-                        f.writelines(response.url + '\n')
-                        return
+                match = True
+        if match:
+            with open('data/result', mode='a+', encoding='utf-8') as f:
+                f.writelines(title + '\n')
+                f.writelines(response.url + '\n')
+                return
 
     def parse(self, response):
+        # yield scrapy.Request(url="https://www.douban.com/group/topic/137437482/", callback=self.parseEntry)
+        # return
         # 防止每次请求数量过多被禁止访问
         if (self.page_viewed >= self.max_page_viewed):
-            time.sleep(1800)
+            # time.sleep(1800)
             self.page_viewed = 0
+            return
         for entry in response.css('#content tr'):
             title = entry.css('.title>a::text').get()
             author = entry.css('td:nth-of-type(2)>a::text').get()
@@ -122,11 +126,8 @@ class DoubanRentSpider(scrapy.Spider):
                     f.writelines(author + '\n')
                 continue
             # 价格判断
-            priceStr = re.search(self.price_keywords, title)
-            if (priceStr):
-                price = int(priceStr[1])
-                if (price > self.maxPrice):
-                    continue
+            if not checker.checker.checkPrice(title):
+                continue
             yield scrapy.Request(url=url, callback=self.parseEntry)
             # 等待随机时间
             sleepTime = random.randint(3, 10)
