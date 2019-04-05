@@ -4,7 +4,9 @@ import re
 import os
 import time
 import random
-import checker
+import sys
+import find_a_rent_house.spiders.checker as checker
+import find_a_rent_house.items as items
 
 class DoubanRentSpider(scrapy.Spider):
     name = 'douban-rent'
@@ -12,7 +14,9 @@ class DoubanRentSpider(scrapy.Spider):
         'https://www.douban.com/group/shanghaizufang/discussion',
     ]
     custom_settings = {
-        'ROBOTSTXT_OBEY': False
+        'ROBOTSTXT_OBEY': False,
+        'CONCURRENT_REQUESTS_PER_DOMAIN': 1,
+        'DOWNLOAD_DELAY': 4
     }
     itemsPerPage = 25
     page = 0
@@ -38,7 +42,7 @@ class DoubanRentSpider(scrapy.Spider):
     # 本次启动浏览的页面数量
     page_viewed = 0
     # 每次启动浏览的最大页面数量
-    max_page_viewed = 300
+    max_page_viewed = 250
 
     def __init__(self):
         with open('data/blacklist', mode='r+', encoding='utf-8') as f:
@@ -48,12 +52,8 @@ class DoubanRentSpider(scrapy.Spider):
             self.history = f.readlines()
 
     def parseEntry(self, response):
-        self.page_viewed = self.page_viewed + 1
-        title = response.css('#content>h1::text').get()
-        content = response.css('.topic-richtext>p::text').getall()
-        image = response.css('.topic-richtext img').getall()
-        dateStr = response.css('.topic-doc>h3>span:nth-last-of-type(1)::text').get()
-        date = datetime.datetime.strptime(dateStr, '%Y-%m-%d %H:%M:%S')
+        item_loader = items.RentHouseItemLoader(items.RentHouseItem(), response)
+        item = item_loader.load_item()
         print('visiting page:', response.url)
         # 加入已浏览过的历史页面中
         self.history.append(response.url)
@@ -61,34 +61,29 @@ class DoubanRentSpider(scrapy.Spider):
             f.writelines(response.url + '\n')
         # 发帖时间太久远
         now = datetime.datetime.now()
-        delta = now - date
+        delta = now - item['date']
         if (delta.total_seconds() > self.period_seconds):
             return
         # 图片数量
-        imageNum = len(image)
-        if (imageNum == 0):
+        if (item['image_num'] == 0):
             return
-        match = False
-        for paragraph in content:
-            # 价格判断
-            if not checker.checker.checkPrice(paragraph):
-                return
-            if (re.search(self.ex_keywords, paragraph)):
-                return
-            if (re.search(self.keywords, paragraph)):
-                match = True
-        if match:
-            with open('data/result', mode='a+', encoding='utf-8') as f:
-                f.writelines(title + '\n')
-                f.writelines(response.url + '\n')
-                return
+        # 价格判断
+        if not checker.checker.checkPrice(item['content']):
+            return
+        if (re.search(self.ex_keywords, item['content'])):
+            return
+        if (not re.search(self.keywords, item['content'])):
+            return
+        with open('data/result', mode='a+', encoding='utf-8') as f:
+            f.writelines(item['title'])
+            f.writelines(response.url)
+            return
 
     def parse(self, response):
-        # yield scrapy.Request(url="https://www.douban.com/group/topic/137437482/", callback=self.parseEntry)
+        # yield scrapy.Request(url="https://www.douban.com/group/topic/137200461/", callback=self.parseEntry)
         # return
         # 防止每次请求数量过多被禁止访问
         if (self.page_viewed >= self.max_page_viewed):
-            # time.sleep(1800)
             self.page_viewed = 0
             return
         for entry in response.css('#content tr'):
@@ -128,9 +123,6 @@ class DoubanRentSpider(scrapy.Spider):
             # 价格判断
             if not checker.checker.checkPrice(title):
                 continue
-            yield scrapy.Request(url=url, callback=self.parseEntry)
-            # 等待随机时间
-            sleepTime = random.randint(3, 10)
-            time.sleep(sleepTime)
+            yield response.follow(url=url, callback=self.parseEntry)
         self.page = self.page + 1
         yield scrapy.Request(self.start_urls[0] + '?start=' + str(self.page * self.itemsPerPage), callback = self.parse)
