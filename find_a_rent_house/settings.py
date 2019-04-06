@@ -65,7 +65,8 @@ ROBOTSTXT_OBEY = False
 # Configure item pipelines
 # See https://doc.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-    'find_a_rent_house.pipelines.FindARentHousePipeline': 300,
+    'find_a_rent_house.pipelines.RentHouseItemPipeline': 300,
+    'find_a_rent_house.pipelines.CatalogItemPipeline': 301
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
@@ -89,3 +90,6 @@ ITEM_PIPELINES = {
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 FEED_EXPORT_ENCODING = 'utf-8'
+
+LOG_FILE = 'data/log'
+LOG_LEVEL = 'INFO'

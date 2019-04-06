@@ -47,14 +47,18 @@ class DoubanRentSpider(scrapy.Spider):
     def __init__(self):
         with open('data/blacklist', mode='r+', encoding='utf-8') as f:
             self.blacklist = f.readlines()
-            print("loading blacklist, length:", len(self.blacklist))
+            self.logger.info("loading blacklist, length:%d", len(self.blacklist))
         with open('data/history', mode='r+', encoding='utf-8') as f:
             self.history = f.readlines()
 
     def parseEntry(self, response):
         item_loader = items.RentHouseItemLoader(items.RentHouseItem(), response)
         item = item_loader.load_item()
-        print('visiting page:', response.url)
+        if 'full_title' in item:
+            content = item['full_title'] + '\n' + item['content']
+        else:
+            content = item['title'] + '\n' + item['content']
+        self.logger.info('visiting page:%s', response.url)
         # 加入已浏览过的历史页面中
         self.history.append(response.url)
         with open('data/history', mode='a+', encoding='utf-8') as f:
@@ -68,61 +72,65 @@ class DoubanRentSpider(scrapy.Spider):
         if (item['image_num'] == 0):
             return
         # 价格判断
-        if not checker.checker.checkPrice(item['content']):
+        if not checker.checker.checkPrice(content):
             return
-        if (re.search(self.ex_keywords, item['content'])):
+        if (re.search(self.ex_keywords, content)):
             return
-        if (not re.search(self.keywords, item['content'])):
+        if (not re.search(self.keywords, content)):
             return
         with open('data/result', mode='a+', encoding='utf-8') as f:
-            f.writelines(item['title'])
+            if 'full_title' in item:
+                f.writelines(item['full_title'])
+            else:
+                f.writelines(item['title'])
             f.writelines(response.url)
             return
 
     def parse(self, response):
-        # yield scrapy.Request(url="https://www.douban.com/group/topic/137200461/", callback=self.parseEntry)
+        # yield scrapy.Request(url="https://www.douban.com/group/topic/137594429/", callback=self.parseEntry)
         # return
         # 防止每次请求数量过多被禁止访问
         if (self.page_viewed >= self.max_page_viewed):
             self.page_viewed = 0
             return
         for entry in response.css('#content tr'):
-            title = entry.css('.title>a::text').get()
-            author = entry.css('td:nth-of-type(2)>a::text').get()
-            url = entry.css('.title>a::attr(href)').get()
-            lastRespStr = entry.css('td:nth-of-type(4)::text').get()
-            if (title == None or author == None or url == None):
+            item_loader = items.CatalogItemLoader(items.CatalogItem(), entry)
+            item = item_loader.load_item()
+            if ('title' not in item or 'author' not in item or 'url' not in item):
                 continue
             # 作者在黑名单中
-            if (author in self.blacklist):
+            if (item['author'] in self.blacklist):
                 continue
             # 已经浏览过
-            if (url in self.history):
+            if (item['url'] in self.history):
                 continue
             # 最后回复时间是否最近
             now = datetime.datetime.now()
             lastRespDate = None
-            if (lastRespStr.index(':')):
-                lastRespDate = datetime.datetime.strptime('2019-' + lastRespStr, '%Y-%m-%d %H:%M')
+            if (item['lastRespStr'].index(':')):
+                lastRespDate = datetime.datetime.strptime('2019-' + item['lastRespStr'], '%Y-%m-%d %H:%M')
             else:
-                lastRespDate = datetime.datetime.strptime(lastRespStr, '%Y-%m-%d')
+                lastRespDate = datetime.datetime.strptime(item['lastRespStr'], '%Y-%m-%d')
             if ((now - lastRespDate).total_seconds() > self.response_period_seconds):
                 return
             # 作者最近发帖次数
             count = 1
-            if (author not in self.authorMap):
-                count = self.authorMap[author] = 1
+            if (item['author'] not in self.authorMap):
+                count = self.authorMap[item['author']] = 1
             else:
-                count = self.authorMap[author] = self.authorMap[author] + 1
+                count = self.authorMap[item['author']] = self.authorMap[item['author']] + 1
             if (count >= self.blacklistThreshold):
                 # 加入黑名单
-                self.blacklist.append(author)
+                self.blacklist.append(item['author'])
                 with open('data/blacklist', mode='a+', encoding='utf-8') as f:
-                    f.writelines(author + '\n')
+                    f.writelines(item['author'] + '\n')
                 continue
             # 价格判断
-            if not checker.checker.checkPrice(title):
+            if not checker.checker.checkPrice(item['title']):
                 continue
-            yield response.follow(url=url, callback=self.parseEntry)
+            # 标题关键字过滤
+            if (re.search(self.ex_keywords, item['title'])):
+                continue
+            yield response.follow(url=item['url'], callback=self.parseEntry)
         self.page = self.page + 1
         yield scrapy.Request(self.start_urls[0] + '?start=' + str(self.page * self.itemsPerPage), callback = self.parse)
