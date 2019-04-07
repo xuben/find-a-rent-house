@@ -1,1 +1,1 @@
-scrapy runspider spiders/douban.py -o data/result.json
+scrapy runspider spiders/douban.py

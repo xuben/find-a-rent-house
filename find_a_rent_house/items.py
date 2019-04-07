@@ -18,6 +18,7 @@ class RentHouseItem(Item):
     content = Field()
     image_num = Field()
     date = Field()
+    url = Field()
 
 def count_processor(self, values):
     if values is None:

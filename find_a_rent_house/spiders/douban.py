@@ -22,7 +22,7 @@ class DoubanRentSpider(scrapy.Spider):
     page = 0
     # 黑名单阈值
     blacklistThreshold = 4
-    # 搜索的关键字
+    # 搜索的关键字(CheckerPipeline中有引用)
     keywords = r'((4|四).{0,5}号线?)|海伦路|宝山路|上海火车站|中潭路\
         |镇坪路|曹杨路|金沙江路|中山公园|延安西路|虹桥路|宜山路|临平路|大连路\
             |杨树浦路|浦东大道|世纪大道|浦电路|蓝村路|四川北路|天潼路|南京东路\
@@ -54,11 +54,9 @@ class DoubanRentSpider(scrapy.Spider):
     def parseEntry(self, response):
         item_loader = items.RentHouseItemLoader(items.RentHouseItem(), response)
         item = item_loader.load_item()
-        if 'full_title' in item:
-            content = item['full_title'] + '\n' + item['content']
-        else:
-            content = item['title'] + '\n' + item['content']
+        
         self.logger.info('visiting page:%s', response.url)
+
         # 加入已浏览过的历史页面中
         self.history.append(response.url)
         with open('data/history', mode='a+', encoding='utf-8') as f:
@@ -68,23 +66,8 @@ class DoubanRentSpider(scrapy.Spider):
         delta = now - item['date']
         if (delta.total_seconds() > self.period_seconds):
             return
-        # 图片数量
-        if (item['image_num'] == 0):
-            return
-        # 价格判断
-        if not checker.checker.checkPrice(content):
-            return
-        if (re.search(self.ex_keywords, content)):
-            return
-        if (not re.search(self.keywords, content)):
-            return
-        with open('data/result', mode='a+', encoding='utf-8') as f:
-            if 'full_title' in item:
-                f.writelines(item['full_title'])
-            else:
-                f.writelines(item['title'])
-            f.writelines(response.url)
-            return
+        item['url'] = response.url
+        return item
 
     def parse(self, response):
         # yield scrapy.Request(url="https://www.douban.com/group/topic/137594429/", callback=self.parseEntry)

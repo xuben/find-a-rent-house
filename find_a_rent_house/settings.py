@@ -66,7 +66,9 @@ ROBOTSTXT_OBEY = False
 # See https://doc.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
     'find_a_rent_house.pipelines.RentHouseItemPipeline': 300,
-    'find_a_rent_house.pipelines.CatalogItemPipeline': 301
+    'find_a_rent_house.pipelines.CatalogItemPipeline': 301,
+    'find_a_rent_house.pipelines.CheckerPipeline': 302,
+    'find_a_rent_house.pipelines.RentItemWriterPipeline': 303
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
@@ -92,4 +94,4 @@ ITEM_PIPELINES = {
 FEED_EXPORT_ENCODING = 'utf-8'
 
 LOG_FILE = 'data/log'
-LOG_LEVEL = 'INFO'
+LOG_LEVEL = 'WARNING'
