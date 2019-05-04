@@ -62,7 +62,7 @@ class DoubanRentSpider(scrapy.Spider):
         item = item_loader.load_item()
         
         self.logger.info('visiting page:%s', response.url)
-
+        self.page_viewed = self.page_viewed + 1
         # 加入已浏览过的历史页面中
         self.history.append(response.url)
         with open('data/history', mode='a+', encoding='utf-8') as f:
@@ -76,7 +76,7 @@ class DoubanRentSpider(scrapy.Spider):
         return item
 
     def parse(self, response):
-        # yield scrapy.Request(url="https://www.douban.com/group/topic/137594429/", callback=self.parseEntry)
+        # yield scrapy.Request(url="https://www.douban.com/group/topic/139867823/", callback=self.parseEntry)
         # return
         # 防止每次请求数量过多被禁止访问
         if (self.page_viewed >= self.max_page_viewed):
