@@ -45,10 +45,16 @@ class DoubanRentSpider(scrapy.Spider):
     max_page_viewed = 250
 
     def __init__(self):
-        with open('data/blacklist', mode='r+', encoding='utf-8') as f:
+        blacklist_path = 'data/blacklist'
+        history_path = 'data/history'
+        with open(blacklist_path, mode='a+', encoding='utf-8') as f:
+            pass
+        with open(history_path, mode='a+', encoding='utf-8') as f:
+            pass
+        with open(blacklist_path, mode='r+', encoding='utf-8') as f:
             self.blacklist = f.readlines()
             self.logger.info("loading blacklist, length:%d", len(self.blacklist))
-        with open('data/history', mode='r+', encoding='utf-8') as f:
+        with open(history_path, mode='r+', encoding='utf-8') as f:
             self.history = f.readlines()
 
     def parseEntry(self, response):
